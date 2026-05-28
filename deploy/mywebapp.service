@@ -1,0 +1,30 @@
+[Unit]
+Description=mywebapp - Simple Inventory Service
+After=network.target mariadb.service mywebapp.socket
+Requires=mariadb.service mywebapp.socket
+
+[Service]
+Type=simple
+User=mywebapp
+Group=mywebapp
+WorkingDirectory=/opt/mywebapp
+Sockets=mywebapp.socket
+
+ExecStartPre=/opt/mywebapp/venv/bin/python /opt/mywebapp/migrate.py \
+    --db-host 127.0.0.1 --db-port 3306 \
+    --db-name mywebapp --db-user mywebapp \
+    --db-password __DB_PASSWORD__
+
+ExecStart=/opt/mywebapp/venv/bin/python /opt/mywebapp/app.py \
+    --host 127.0.0.1 --port 8000 \
+    --db-host 127.0.0.1 --db-port 3306 \
+    --db-name mywebapp --db-user mywebapp \
+    --db-password __DB_PASSWORD__
+
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
