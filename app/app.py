@@ -15,7 +15,7 @@ from gunicorn.app.base import BaseApplication
 
 app = Flask(__name__)
 
-DB_CONFIG = {}
+DB_CONFIG: dict[str, object] = {}
 
 
 def configure_db(args):
