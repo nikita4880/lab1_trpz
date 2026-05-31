@@ -15,7 +15,7 @@ from gunicorn.app.base import BaseApplication
 
 app = Flask(__name__)
 
-DB_CONFIG = {}
+DB_CONFIG: dict[str, object] = {}
 
 
 def configure_db(args):
@@ -38,17 +38,21 @@ def get_db():
     }
     return mysql.connector.connect(**config)
 
+
 def accepts_html():
     accept = request.headers.get("Accept", "")
     return "text/html" in accept and "application/json" not in accept
+
 
 def html_response(body, status=200):
     return Response(f"<!DOCTYPE html><html><body>{body}</body></html>",
                     status=status, mimetype="text/html")
 
+
 @app.route("/health/alive")
 def health_alive():
     return Response("OK", status=200, mimetype="text/plain")
+
 
 @app.route("/health/ready")
 def health_ready():
@@ -58,6 +62,7 @@ def health_ready():
         return Response("OK", status=200, mimetype="text/plain")
     except Exception as e:
         return Response(f"DB unavailable: {e}", status=500, mimetype="text/plain")
+
 
 @app.route("/")
 def index():
@@ -71,6 +76,7 @@ def index():
     """
     return html_response(html)
 
+
 @app.route("/items", methods=["GET"])
 def list_items():
     conn = get_db()
@@ -83,6 +89,7 @@ def list_items():
         tr = "".join(f"<tr><td>{r['id']}</td><td>{r['name']}</td></tr>" for r in rows)
         return html_response(f"<h1>Inventory</h1><table border=1><tr><th>ID</th><th>Name</th></tr>{tr}</table>")
     return jsonify(rows)
+
 
 @app.route("/items", methods=["POST"])
 def create_item():
@@ -105,6 +112,7 @@ def create_item():
     if accepts_html():
         return html_response(f"<p>Created item id={item_id}</p>", status=201)
     return jsonify({"id": item_id, "name": name, "quantity": quantity}), 201
+
 
 @app.route("/items/<int:item_id>", methods=["GET"])
 def get_item(item_id):

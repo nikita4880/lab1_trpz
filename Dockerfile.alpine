@@ -1,0 +1,20 @@
+# Dockerfile — alpine, оптимізований
+# mysql-connector-python є pure Python, тому gcc не потрібен
+FROM python:3.12-alpine
+
+WORKDIR /app
+
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app/ .
+
+EXPOSE 8000
+
+ENTRYPOINT ["python", "app.py"]
+CMD ["--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--db-host", "db", \
+     "--db-name", "mywebapp", \
+     "--db-user", "mywebapp", \
+     "--db-password", "mywebapp_pass"]

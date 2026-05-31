@@ -1,0 +1,62 @@
+name: CD
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  deploy:
+    name: Deploy to target node
+    runs-on: self-hosted
+
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        env:
+          TARGET_HOST: ${{ secrets.TARGET_HOST }}
+          TARGET_USER: ${{ secrets.TARGET_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          IMAGE_TAG: ${{ github.ref_name }}
+          GHCR_IMAGE: ghcr.io/${{ github.repository }}
+          DB_NAME: ${{ secrets.DB_NAME }}
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$TARGET_HOST" >> ~/.ssh/known_hosts
+
+          scp -i ~/.ssh/deploy_key \
+            deploy/deploy.sh \
+            "${TARGET_USER}@${TARGET_HOST}:/tmp/deploy.sh"
+
+          ssh -i ~/.ssh/deploy_key "${TARGET_USER}@${TARGET_HOST}" \
+            "IMAGE=${GHCR_IMAGE}:${IMAGE_TAG} \
+             DB_NAME=${DB_NAME} \
+             DB_USER=${DB_USER} \
+             DB_PASSWORD=${DB_PASSWORD} \
+             bash /tmp/deploy.sh"
+
+      - name: Verify deployment
+        env:
+          TARGET_HOST: ${{ secrets.TARGET_HOST }}
+          TARGET_USER: ${{ secrets.TARGET_USER }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            deploy/verify.sh \
+            "${TARGET_USER}@${TARGET_HOST}:/tmp/verify.sh"
+
+          ssh -i ~/.ssh/deploy_key "${TARGET_USER}@${TARGET_HOST}" \
+            "bash /tmp/verify.sh"
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
