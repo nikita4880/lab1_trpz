@@ -4,16 +4,15 @@ tests.py — автоматичні тести для Simple Inventory (mywebapp
 Запуск: pytest app/tests.py --cov=app --cov-report=term-missing
 """
 
-import unittest
-from unittest.mock import patch, MagicMock
-import json
-
-# Підключаємо app без запуску gunicorn
 import sys
 import os
+import unittest
+import json
+from unittest.mock import patch, MagicMock
+
 sys.path.insert(0, os.path.dirname(__file__))
 
-from app import app, DB_CONFIG
+from app import app  # noqa: E402
 
 
 class TestHealthEndpoints(unittest.TestCase):
