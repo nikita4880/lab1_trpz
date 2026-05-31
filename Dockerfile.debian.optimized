@@ -1,0 +1,24 @@
+# Dockerfile — debian/bookworm, оптимізований (використовується в docker-compose)
+FROM python:3.12-bookworm
+
+WORKDIR /app
+
+# Крок 1: тільки requirements.txt (рідко змінюється)
+# → шар з pip install кешується поки requirements.txt не змінився
+COPY app/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Крок 2: увесь код (часто змінюється)
+COPY app/ .
+
+EXPOSE 8000
+
+# Не задаємо CMD/ENTRYPOINT жорстко — docker-compose передає команду сам
+# Але для запуску без compose залишаємо дефолт:
+ENTRYPOINT ["python", "app.py"]
+CMD ["--host", "0.0.0.0", \
+     "--port", "8000", \
+     "--db-host", "db", \
+     "--db-name", "mywebapp", \
+     "--db-user", "mywebapp", \
+     "--db-password", "mywebapp_pass"]

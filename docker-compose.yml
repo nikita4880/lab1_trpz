@@ -1,0 +1,72 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: mywebapp_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass
+      MYSQL_DATABASE: mywebapp
+      MYSQL_USER: mywebapp
+      MYSQL_PASSWORD: mywebapp_pass
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - app_network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.debian.optimized
+    container_name: mywebapp_app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # sh -c потрібен бо ENTRYPOINT в Dockerfile — ["python", "app.py"]
+    # тому перевизначаємо entrypoint щоб виконати міграцію перед запуском
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        python migrate.py \
+          --db-host db \
+          --db-name mywebapp \
+          --db-user mywebapp \
+          --db-password mywebapp_pass \
+        && python app.py \
+          --host 0.0.0.0 \
+          --port 8000 \
+          --db-host db \
+          --db-name mywebapp \
+          --db-user mywebapp \
+          --db-password mywebapp_pass
+    networks:
+      - app_network
+    expose:
+      - "8000"
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: mywebapp_nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx_docker.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - app_network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  app_network:
+    driver: bridge
