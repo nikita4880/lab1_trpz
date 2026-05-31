@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+    tags:
+      - "v*"
+  pull_request:
+    branches: [master]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python linting tools
+        run: pip install flake8 mypy mysql-connector-python flask gunicorn
+
+      - name: flake8
+        run: flake8 app/app.py app/migrate.py app/tests.py --max-line-length=120
+
+      - name: mypy
+        run: mypy app/app.py app/migrate.py --ignore-missing-imports
+
+      - name: hadolint — Dockerfile.debian.optimized
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.debian.optimized
+          failure-threshold: warning
+
+      - name: hadolint — Dockerfile.alpine
+        uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile.alpine
+          failure-threshold: warning
+
+      - name: shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: "./deploy"
+          severity: warning
+
+      - name: yamllint
+        run: |
+          pip install yamllint
+          yamllint -c .yamllint.yml .github/workflows/ci.yml .github/workflows/cd.yml docker-compose.yml
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install flask mysql-connector-python gunicorn pytest pytest-cov
+
+      - name: Run tests with coverage
+        run: |
+          pytest app/tests.py \
+            --cov=app \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage_html \
+            --cov-fail-under=40
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: |
+            coverage.xml
+            coverage_html/
+
+  build:
+    name: Build & Push Image
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_type == 'branch' }}
+            type=sha,format=long,prefix=sha-,enable=${{ github.ref_type == 'branch' }}
+            type=raw,value=stable,enable=${{ github.ref_type == 'tag' }}
+            type=ref,event=tag
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.debian.optimized
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

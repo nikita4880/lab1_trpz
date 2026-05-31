@@ -1,0 +1,8 @@
+# Hadolint configuration
+# Документація: https://github.com/hadolint/hadolint
+
+ignore:
+  # DL3008: pin apt versions — прийнятно для dev образів
+  - DL3008
+  # DL3009: delete apt lists — не критично для bookworm
+  - DL3009
