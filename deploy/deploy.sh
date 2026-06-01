@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# deploy.sh — розгортання нової версії застосунку на target node
-# Запускається з runner через SSH
-# Змінні середовища: IMAGE, DB_NAME, DB_USER, DB_PASSWORD
-
+# deploy.sh — розгортання на target node
 set -euo pipefail
 
 IMAGE="${IMAGE:?IMAGE is required}"
@@ -13,29 +10,12 @@ APP_PORT="${APP_PORT:-8000}"
 
 echo "==> Розгортання образу: ${IMAGE}"
 
-echo "==> [1/4] Оновлення /etc/mywebapp.env"
-sudo tee /etc/mywebapp.env > /dev/null <<ENV
-IMAGE=${IMAGE}
-DB_HOST=host.docker.internal
-DB_PORT=3306
-DB_NAME=${DB_NAME}
-DB_USER=${DB_USER}
-DB_PASSWORD=${DB_PASSWORD}
-APP_PORT=${APP_PORT}
-ENV
-sudo chmod 600 /etc/mywebapp.env
+echo "==> [1/3] Завантаження образу"
+docker pull "${IMAGE}"
 
-echo "==> [2/4] Завантаження нового образу"
-sudo docker pull "${IMAGE}"
-
-echo "==> [3/4] Запуск міграції БД"
-sudo docker run --rm \
+echo "==> [2/3] Запуск міграції"
+docker run --rm \
   --add-host=host.docker.internal:host-gateway \
-  --env DB_HOST=host.docker.internal \
-  --env DB_PORT=3306 \
-  --env DB_NAME="${DB_NAME}" \
-  --env DB_USER="${DB_USER}" \
-  --env DB_PASSWORD="${DB_PASSWORD}" \
   --entrypoint python \
   "${IMAGE}" migrate.py \
     --db-host host.docker.internal \
@@ -43,8 +23,26 @@ sudo docker run --rm \
     --db-user "${DB_USER}" \
     --db-password "${DB_PASSWORD}"
 
-echo "==> [4/4] Перезапуск systemd-сервісу"
-sudo systemctl restart mywebapp
-sudo systemctl is-active mywebapp
+echo "==> [3/3] Перезапуск контейнера"
+docker stop mywebapp 2>/dev/null || true
+docker rm mywebapp 2>/dev/null || true
+docker run -d \
+  --name mywebapp \
+  --restart unless-stopped \
+  -p 127.0.0.1:${APP_PORT}:${APP_PORT} \
+  --add-host=host.docker.internal:host-gateway \
+  -e DB_HOST=host.docker.internal \
+  -e DB_PORT=3306 \
+  -e DB_NAME="${DB_NAME}" \
+  -e DB_USER="${DB_USER}" \
+  -e DB_PASSWORD="${DB_PASSWORD}" \
+  "${IMAGE}" \
+  --host 0.0.0.0 \
+  --port "${APP_PORT}" \
+  --db-host host.docker.internal \
+  --db-name "${DB_NAME}" \
+  --db-user "${DB_USER}" \
+  --db-password "${DB_PASSWORD}"
 
+docker ps --filter name=mywebapp
 echo "✅ Розгортання завершено: ${IMAGE}"
