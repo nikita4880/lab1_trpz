@@ -21,8 +21,9 @@ docker run --rm \
   -e DB_NAME="${DB_NAME}" \
   -e DB_USER="${DB_USER}" \
   -e DB_PASSWORD="${DB_PASSWORD}" \
-  --entrypoint python \
-  "${IMAGE}" migrate.py \
+  --entrypoint "" \
+  "${IMAGE}" \
+  python migrate.py \
     --db-host "${DB_HOST}" \
     --db-name "${DB_NAME}" \
     --db-user "${DB_USER}" \
