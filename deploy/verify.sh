@@ -19,7 +19,7 @@ echo "════════════════════════�
 # ── 1. systemd-сервіс активний ────────────────────────────────
 echo ""
 echo "[1] systemd-сервіс mywebapp"
-if systemctl is-active --quiet mywebapp; then
+if docker ps --filter "name=mywebapp" --filter "status=running" | grep -q mywebapp; then
   pass "mywebapp.service is active"
 else
   fail "mywebapp.service is NOT active"
